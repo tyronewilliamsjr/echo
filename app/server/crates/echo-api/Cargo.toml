@@ -1,0 +1,8 @@
+[package]
+name = "echo-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+echo-db = { path = "../echo-db" }
+tokio = "1.53.1"
