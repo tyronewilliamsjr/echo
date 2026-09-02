@@ -1,26 +1,22 @@
-use echo_db::connect;
-use echo_db::users::find_user_by_id;
+mod app;
+mod app_state;
+mod error;
+mod users;
 
-async fn test() {
-    let p = connect("").await;
-
-    let pool = p.unwrap_or_else(|e| {
-        println!("Error{:?}", e);
-        panic!("");
-    });
-
-    // if let pool = p.unwrap() {
-    let results = find_user_by_id(&pool, "1").await;
-    let results = results.unwrap_or_else(|e| {
-        println!("Error messages:${:?}", e);
-        panic!("Test")
-    });
-
-    // println!("{:?}", results);
-    // }
-}
+use app_state::AppState;
+use error::ApiError;
 
 #[tokio::main]
-async fn main() {
-    test().await;
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let db_url = "NO LEAKS";
+
+    let pool = echo_db::connect(db_url).await?;
+    let app_state = AppState { pool };
+
+    let application = app::create_app(app_state);
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+
+    axum::serve(listener, application).await?;
+
+    Ok(())
 }
