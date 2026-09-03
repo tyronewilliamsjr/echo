@@ -1,7 +1,10 @@
 use sqlx::postgres::{PgPool, PgPoolOptions};
 
-pub mod users;
+pub mod account;
+pub mod password_credential;
 pub mod privacy;
+pub mod sessions;
+pub mod users;
 
 pub async fn connect(database_url: &str) -> Result<PgPool, sqlx::Error> {
     PgPoolOptions::new()

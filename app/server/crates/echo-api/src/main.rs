@@ -1,6 +1,8 @@
 mod app;
 mod app_state;
+mod auth;
 mod error;
+mod middleware;
 mod users;
 
 use app_state::AppState;

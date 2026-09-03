@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8.9"
+argon2 = "0.6.0"
 echo-db = { path = "../echo-db" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
@@ -18,3 +19,9 @@ sqlx = { version = "0.9", features = [
 thiserror = "2.0.20"
 tokio = { version = "1.53.1", features = ["full"] }
 uuid = { version = "1.26.0", features = ["v4", "serde"] }
+rand = "0.10.2"
+sha2 = "0.11.0"
+base64 = "0.23.1"
+axum-extra = "0.12.6"
+tower-cookies = "0.11.0"
+chrono = "0.4.45"

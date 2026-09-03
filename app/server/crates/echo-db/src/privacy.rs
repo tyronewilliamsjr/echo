@@ -16,7 +16,7 @@ pub struct Privacy {
     pub created_at: DateTime<Utc>,
 }
 
-pub struct Create_Privacy {
+pub struct CreatePrivacy {
     pub user_id: Uuid,
     pub version: i32,
     pub is_current: bool,
@@ -44,26 +44,23 @@ where
     Ok(policy)
 }
 
-pub async fn create_default(
-    tx: &mut PgTransaction<'_>,
-    user_id: Uuid,
-) -> Result<Privacy, sqlx::Error> {
-    let policy = sqlx::query_as::<_, Privacy>(
+pub async fn create_default(tx: &mut PgTransaction<'_>, user_id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query(
 		"
 			INSERT INTO user_privacy (user_id, version, is_current, retain_audio, retain_transcript, allow_embedding, allow_reminder)
 			VALUES ($1, 1, TRUE, TRUE,TRUE,TRUE,TRUE)
-			RETURNING *
 		"
 	)
 	.bind(user_id)
-	.fetch_one(&mut **tx)
+	.execute(&mut **tx)
 	.await?;
 
-    Ok(policy)
+    Ok(())
 }
 
 // pub async fn create(
 //     tx: &mut PgTransaction<'_>,
 //     input: Create_Privacy,
 // ) -> Result<Privacy, sqlx::Error> {
+//     sqlx::query_as::<_, Privacy>().fetch_one(exec).await?
 // }
