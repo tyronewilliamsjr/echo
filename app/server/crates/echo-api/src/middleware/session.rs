@@ -1,6 +1,5 @@
 use crate::{AppState, error::ApiError};
 use axum::{
-    RequestExt,
     extract::{Request, State},
     middleware::Next,
     response::Response,

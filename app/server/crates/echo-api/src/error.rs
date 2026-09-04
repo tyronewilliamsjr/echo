@@ -4,7 +4,7 @@ use axum::{
 };
 use sqlx;
 
-use crate::{auth::password::PasswordError, error::ApiError::Password};
+use crate::auth::password::PasswordError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
@@ -19,19 +19,25 @@ pub enum ApiError {
 
     #[error("unauthorized")]
     Unauthorized,
+
+    #[error("privacy policy missing")]
+    MissingPrivacySetting,
 }
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {
             Self::Database(error) => {
+                tracing::error!(error = ?error, "Database Error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
             }
             Self::Password(error) => match error {
                 PasswordError::Hash(err) => {
+                    tracing::error!(error = ?err, "Password hashing failed");
                     (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
                 }
                 PasswordError::PHC(err) => {
+                    tracing::error!(error = ?err, "Password hashing failed");
                     (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
                 }
                 PasswordError::InvalidPassword => {
@@ -43,6 +49,14 @@ impl IntoResponse for ApiError {
             }
             Self::InvalidCredentials => {
                 (StatusCode::UNAUTHORIZED, "Invalid username or password").into_response()
+            }
+            Self::MissingPrivacySetting => {
+                tracing::error!("Missing privacy policy");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Missing privacy setting for user",
+                )
+                    .into_response()
             }
         }
     }

@@ -25,3 +25,6 @@ base64 = "0.23.1"
 axum-extra = "0.12.6"
 tower-cookies = "0.11.0"
 chrono = "0.4.45"
+tracing = "0.1.44"
+tracing-subscriber = { version= "0.3.23", features = ["env-filter", "fmt"] }
+tower-http = { version = "0.7.1", features = ["trace"] }

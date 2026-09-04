@@ -146,5 +146,7 @@ pub async fn logout(
     }
 
     cookies.remove(Cookie::build(("session", "")).path("/").build());
+    tracing::info!(user_id = %user.id, "User logged out");
+
     Ok(StatusCode::OK)
 }

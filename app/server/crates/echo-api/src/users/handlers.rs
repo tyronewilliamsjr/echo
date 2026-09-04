@@ -1,16 +1,36 @@
-use crate::{ApiError, AppState};
-use axum::{Json, extract::State, http::StatusCode};
+use crate::{ApiError, AppState, middleware::session::CurrentUser};
+use axum::{Extension, Json, extract::State, http::StatusCode};
 use echo_db;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize)]
-pub struct SignupRequest {
-    pub email: String,
+#[derive(Debug, Serialize)]
+pub struct PrivacyResponse {
+    pub id: Uuid,
+    pub version: i32,
+    pub retain_audio: bool,
+    pub retain_transcript: bool,
+    pub allow_embedding: bool,
+    pub allow_reminder: bool,
 }
 
-#[derive(Debug, Serialize)]
-pub struct SignupResponse {
-    pub id: Uuid,
-    pub email: String,
+pub async fn get_privacy(
+    Extension(user): Extension<CurrentUser>,
+    State(state): State<AppState>,
+) -> Result<(StatusCode, Json<PrivacyResponse>), ApiError> {
+    let policy = echo_db::privacy::find_current(&state.pool, user.id)
+        .await?
+        .ok_or(ApiError::MissingPrivacySetting)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(PrivacyResponse {
+            id: policy.id,
+            version: policy.version,
+            retain_audio: policy.retain_audio,
+            retain_transcript: policy.retain_transcript,
+            allow_embedding: policy.allow_embedding,
+            allow_reminder: policy.allow_reminder,
+        }),
+    ))
 }
