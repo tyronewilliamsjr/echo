@@ -4,7 +4,9 @@ use crate::middleware::session::require_auth;
 use axum::{Router, middleware, routing::post};
 
 pub fn router(state: AppState) -> Router<AppState> {
-    let unprotected_routes = Router::new().route("/signup", post(handlers::email_signup));
+    let unprotected_routes = Router::new()
+        .route("/signup", post(handlers::email_signup))
+        .route("/login", post(handlers::password_login));
 
     let protected_routes = Router::new()
         .route("/logout", post(handlers::logout))

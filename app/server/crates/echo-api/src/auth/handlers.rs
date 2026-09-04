@@ -1,5 +1,7 @@
 use super::password::hash_password;
-use crate::{ApiError, AppState, middleware::session::CurrentUser};
+use crate::{
+    ApiError, AppState, auth::password::verify_password, middleware::session::CurrentUser,
+};
 use axum::{Extension, Json, extract::State, http::StatusCode};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{Duration, Utc};
@@ -21,11 +23,17 @@ pub struct SignupResponse {
     pub id: Uuid,
     pub email: String,
 }
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub email: String,
+    pub password: String,
+}
 
 pub struct SessionToken {
     pub token: String,
     pub hash: [u8; 32],
 }
+
 fn generate_session_token() -> SessionToken {
     let mut token_bytes = [0u8; 32];
     rand::rng().fill_bytes(&mut token_bytes);
@@ -36,6 +44,24 @@ fn generate_session_token() -> SessionToken {
     SessionToken { token, hash }
 }
 
+fn generate_cookie(token: String, secure: bool) -> Cookie<'static> {
+    Cookie::build(("session", token))
+        .http_only(true)
+        .secure(secure)
+        .path("/")
+        .build()
+}
+
+fn decode_session_cookie(url_token: &str) -> Result<[u8; 32], ApiError> {
+    let token_bytes = URL_SAFE_NO_PAD
+        .decode(url_token)
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    let token_hash: [u8; 32] = Sha256::digest(&token_bytes).into();
+
+    Ok(token_hash)
+}
+
 pub async fn email_signup(
     State(state): State<AppState>,
     cookies: Cookies,
@@ -43,8 +69,6 @@ pub async fn email_signup(
 ) -> Result<(StatusCode, Json<SignupResponse>), ApiError> {
     let session_token = generate_session_token();
     let hash = hash_password(&request.password)?;
-
-    println!("Starting db");
 
     let mut tx = state.pool.begin().await?;
     let user = echo_db::users::create(
@@ -68,13 +92,7 @@ pub async fn email_signup(
     .await?;
 
     tx.commit().await?;
-
-    println!("finished database calls");
-    let cookie = Cookie::build(("session", session_token.token))
-        .http_only(true)
-        .secure(true)
-        .path("/")
-        .build();
+    let cookie = generate_cookie(session_token.token, state.cookie_secure);
     cookies.add(cookie);
 
     Ok((
@@ -86,12 +104,47 @@ pub async fn email_signup(
     ))
 }
 
+pub async fn password_login(
+    State(state): State<AppState>,
+    cookies: Cookies,
+    Json(request): Json<LoginRequest>,
+) -> Result<StatusCode, ApiError> {
+    let user = echo_db::users::find_by_email(&state.pool, request.email)
+        .await?
+        .ok_or(ApiError::InvalidCredentials)?;
+
+    let pass_cred = echo_db::password_credential::find_by_user(&state.pool, user.id)
+        .await?
+        .ok_or(ApiError::InvalidCredentials)?;
+
+    verify_password(&request.password, &pass_cred.hash)?;
+
+    let session_token = generate_session_token();
+    echo_db::sessions::create(
+        &state.pool,
+        SessionCreate {
+            user_id: user.id,
+            token_hash: session_token.hash.to_vec(),
+            expires_at: Utc::now() + Duration::days(1),
+        },
+    )
+    .await?;
+    let cookie = generate_cookie(session_token.token, state.cookie_secure);
+    cookies.add(cookie);
+
+    Ok(StatusCode::OK)
+}
+
 pub async fn logout(
     Extension(user): Extension<CurrentUser>,
     State(state): State<AppState>,
     cookies: Cookies,
 ) -> Result<StatusCode, ApiError> {
-    println!("{:?}", user);
+    if let Some(cookie) = cookies.get("session") {
+        let token_hash = decode_session_cookie(cookie.value())?;
+        echo_db::sessions::revoke(&state.pool, &token_hash).await?;
+    }
 
+    cookies.remove(Cookie::build(("session", "")).path("/").build());
     Ok(StatusCode::OK)
 }
