@@ -30,6 +30,27 @@ where
     Ok(())
 }
 
+pub async fn find_by_user<'e, E>(
+    executor: E,
+    user_id: Uuid,
+) -> Result<Option<PasswordCredential>, sqlx::Error>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    let creds = sqlx::query_as::<_, PasswordCredential>(
+        "
+      SELECT *
+      FROM password_credentials
+      WHERE user_id = $1
+    ",
+    )
+    .bind(user_id)
+    .fetch_optional(executor)
+    .await?;
+
+    Ok(creds)
+}
+
 pub async fn update<'e, E>(
     executor: E,
     user_id: Uuid,

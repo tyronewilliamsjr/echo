@@ -39,6 +39,41 @@ where
     Ok(())
 }
 
+pub async fn delete<'e, E>(executor: E, user_id: String) -> Result<(), sqlx::Error>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "
+      DELETE FROM sessions
+      WEHRE user_id = $1
+    ",
+    )
+    .bind(user_id)
+    .execute(executor)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn revoke<'e, E>(executor: E, hash: &[u8]) -> Result<(), sqlx::Error>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        r#"
+        UPDATE sessions
+        SET revoked_at = NOW()
+        WHERE token_hash = $1
+    "#,
+    )
+    .bind(hash)
+    .execute(executor)
+    .await?;
+
+    Ok(())
+}
+
 pub async fn find_by_hash<'e, E>(executor: E, hash: Vec<u8>) -> Result<Option<Session>, sqlx::Error>
 where
     E: Executor<'e, Database = Postgres>,
