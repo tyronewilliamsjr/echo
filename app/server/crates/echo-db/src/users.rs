@@ -32,17 +32,6 @@ where
     Ok(user)
 }
 
-// /// Creates user and their default settings for versioning.
-// pub async fn create_user(pool: &PgPool, input: CreateUser) -> Result<User, sqlx::Error> {
-//     let mut tx = pool.begin().await?;
-//     let user = create(&mut *tx, input).await?;
-
-//     privacy::create_default(&mut tx, user.id).await?;
-
-//     tx.commit().await?;
-//     Ok(user)
-// }
-
 pub async fn find_by_id(pool: &PgPool, user_id: Uuid) -> Result<Option<User>, sqlx::Error> {
     let user = sqlx::query_as::<_, User>(
         "
