@@ -46,21 +46,57 @@ where
 
 pub async fn create_default(tx: &mut PgTransaction<'_>, user_id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query(
-		"
-			INSERT INTO user_privacy (user_id, version, is_current, retain_audio, retain_transcript, allow_embedding, allow_reminder)
-			VALUES ($1, 1, TRUE, TRUE,TRUE,TRUE,TRUE)
-		"
-	)
-	.bind(user_id)
-	.execute(&mut **tx)
-	.await?;
+    "
+   	INSERT INTO user_privacy (user_id, version, is_current, retain_audio, retain_transcript, allow_embedding, allow_reminder)
+   	VALUES ($1, 1, TRUE, TRUE,TRUE,TRUE,TRUE)
+    "
+    )
+    .bind(user_id)
+    .execute(&mut **tx)
+    .await?;
 
     Ok(())
 }
 
-// pub async fn create(
-//     tx: &mut PgTransaction<'_>,
-//     input: Create_Privacy,
-// ) -> Result<Privacy, sqlx::Error> {
-//     sqlx::query_as::<_, Privacy>().fetch_one(exec).await?
-// }
+pub async fn create(
+    tx: &mut PgTransaction<'_>,
+    input: CreatePrivacy,
+) -> Result<Privacy, sqlx::Error> {
+    let privacy = sqlx::query_as::<_, Privacy>(
+        "
+        INSERT INTO user_privacy (user_id, version, is_current, retain_audio, retain_transcript, allow_embedding, allow_reminder)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+      ",
+    )
+    .bind(input.user_id)
+    .bind(input.version)
+    .bind(input.is_current)
+    .bind(input.retain_audio)
+    .bind(input.retain_transcript)
+    .bind(input.allow_embedding)
+    .bind(input.allow_reminder)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(privacy)
+}
+
+pub async fn remove_current(
+    tx: &mut PgTransaction<'_>,
+    user_id: Uuid,
+) -> Result<Privacy, sqlx::Error> {
+    let privacy = sqlx::query_as::<_, Privacy>(
+        "
+      UPDATE user_privacy
+      set is_current = FALSE
+      WHERE user_id = $1 AND is_current = TRUE
+      RETURNING *
+      ",
+    )
+    .bind(user_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(privacy)
+}
