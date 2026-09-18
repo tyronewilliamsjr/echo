@@ -18,18 +18,19 @@ pub struct SignupRequest {
     pub password: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct SignupResponse {
-    pub id: Uuid,
-    pub email: String,
-}
 #[derive(Debug, Deserialize)]
 pub struct LoginRequest {
     pub email: String,
     pub password: String,
 }
 
-pub struct SessionToken {
+#[derive(Debug, Serialize)]
+pub struct SessionResponse {
+    id: Uuid,
+    username: String,
+}
+
+struct SessionToken {
     pub token: String,
     pub hash: [u8; 32],
 }
@@ -66,7 +67,7 @@ pub async fn email_signup(
     State(state): State<AppState>,
     cookies: Cookies,
     Json(request): Json<SignupRequest>,
-) -> Result<(StatusCode, Json<SignupResponse>), ApiError> {
+) -> Result<(StatusCode, Json<SessionResponse>), ApiError> {
     let session_token = generate_session_token();
     let hash = hash_password(&request.password)?;
 
@@ -97,9 +98,9 @@ pub async fn email_signup(
 
     Ok((
         StatusCode::CREATED,
-        Json(SignupResponse {
+        Json(SessionResponse {
             id: user.id,
-            email: user.email,
+            username: user.email,
         }),
     ))
 }
@@ -108,7 +109,7 @@ pub async fn password_login(
     State(state): State<AppState>,
     cookies: Cookies,
     Json(request): Json<LoginRequest>,
-) -> Result<StatusCode, ApiError> {
+) -> Result<(StatusCode, Json<SessionResponse>), ApiError> {
     let user = echo_db::users::find_by_email(&state.pool, request.email)
         .await?
         .ok_or(ApiError::InvalidCredentials)?;
@@ -132,7 +133,13 @@ pub async fn password_login(
     let cookie = generate_cookie(session_token.token, state.cookie_secure);
     cookies.add(cookie);
 
-    Ok(StatusCode::OK)
+    Ok((
+        StatusCode::OK,
+        Json(SessionResponse {
+            id: user.id,
+            username: user.email,
+        }),
+    ))
 }
 
 pub async fn logout(
@@ -149,4 +156,22 @@ pub async fn logout(
     tracing::info!(user_id = %user.id, "User logged out");
 
     Ok(StatusCode::OK)
+}
+
+/// Gets basic session's user account infomation.
+pub async fn get_session_user(
+    Extension(user): Extension<CurrentUser>,
+    State(state): State<AppState>,
+) -> Result<(StatusCode, Json<SessionResponse>), ApiError> {
+    let session_user = echo_db::users::find_by_id(&state.pool, user.id)
+        .await?
+        .ok_or(ApiError::Unauthorized)?;
+
+    Ok((
+        StatusCode::OK,
+        Json(SessionResponse {
+            id: session_user.id,
+            username: session_user.email,
+        }),
+    ))
 }
