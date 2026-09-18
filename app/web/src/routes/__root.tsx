@@ -5,6 +5,7 @@ import {
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
+import { UserButton } from '@/components/user_button'
 
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
 
@@ -38,6 +39,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     ],
   }),
   shellComponent: RootDocument,
+  beforeLoad: async () => {},
 })
 
 function RootDocument({ children }: { children: React.ReactNode }) {
@@ -48,6 +50,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
 
       <body>
+        <header>
+          <UserButton />
+        </header>
         <main>{children}</main>
         <TanStackDevtools
           config={{
