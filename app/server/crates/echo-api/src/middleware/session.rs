@@ -32,11 +32,11 @@ pub async fn require_auth(
         .ok_or(ApiError::Unauthorized)?;
 
     if session.expires_at <= Utc::now() {
-        // return Err(ApiError::Unauthorized);
+        return Err(ApiError::Unauthorized);
     }
 
     if session.revoked_at.is_some() {
-        // return Err(ApiError::Unauthorized);
+        return Err(ApiError::Unauthorized);
     }
 
     request.extensions_mut().insert(CurrentUser {
