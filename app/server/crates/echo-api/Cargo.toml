@@ -28,3 +28,7 @@ chrono = "0.4.45"
 tracing = "0.1.44"
 tracing-subscriber = { version= "0.3.23", features = ["env-filter", "fmt"] }
 tower-http = { version = "0.7.1", features = ["trace"] }
+reqwest = { version = "0.13.5", features = ["json"] }
+
+aws-config = { version= "1.12.0", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1.149.0"

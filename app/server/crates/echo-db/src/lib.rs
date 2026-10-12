@@ -3,6 +3,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 pub mod account;
 pub mod password_credential;
 pub mod privacy;
+pub mod recordings;
 pub mod sessions;
 pub mod users;
 
