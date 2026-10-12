@@ -2,8 +2,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 mod app;
 mod app_state;
 mod auth;
+mod aws;
 mod error;
 mod middleware;
+mod recordings;
 mod users;
 
 use app_state::AppState;
@@ -33,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let application = app::create_app(app_state);
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3001").await?;
 
     tracing::info!("API server starting");
     axum::serve(listener, application).await?;
