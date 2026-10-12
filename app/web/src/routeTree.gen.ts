@@ -14,6 +14,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthIndexRouteImport } from './routes/auth/index'
 import { Route as AuthedDashboardIndexRouteImport } from './routes/_authed/dashboard/index'
 import { Route as AuthedDashboardSettingsIndexRouteImport } from './routes/_authed/dashboard/settings/index'
+import { Route as AuthedDashboardRIndexRouteImport } from './routes/_authed/dashboard/r/index'
+import { Route as AuthedDashboardRNewIndexRouteImport } from './routes/_authed/dashboard/r/new/index'
 
 const AuthedRouteRoute = AuthedRouteRouteImport.update({
   id: '/_authed',
@@ -40,18 +42,33 @@ const AuthedDashboardSettingsIndexRoute =
     path: '/dashboard/settings/',
     getParentRoute: () => AuthedRouteRoute,
   } as any)
+const AuthedDashboardRIndexRoute = AuthedDashboardRIndexRouteImport.update({
+  id: '/dashboard/r/',
+  path: '/dashboard/r/',
+  getParentRoute: () => AuthedRouteRoute,
+} as any)
+const AuthedDashboardRNewIndexRoute =
+  AuthedDashboardRNewIndexRouteImport.update({
+    id: '/dashboard/r/new/',
+    path: '/dashboard/r/new/',
+    getParentRoute: () => AuthedRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth/': typeof AuthIndexRoute
   '/dashboard/': typeof AuthedDashboardIndexRoute
+  '/dashboard/r/': typeof AuthedDashboardRIndexRoute
   '/dashboard/settings/': typeof AuthedDashboardSettingsIndexRoute
+  '/dashboard/r/new/': typeof AuthedDashboardRNewIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthIndexRoute
   '/dashboard': typeof AuthedDashboardIndexRoute
+  '/dashboard/r': typeof AuthedDashboardRIndexRoute
   '/dashboard/settings': typeof AuthedDashboardSettingsIndexRoute
+  '/dashboard/r/new': typeof AuthedDashboardRNewIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -59,20 +76,36 @@ export interface FileRoutesById {
   '/_authed': typeof AuthedRouteRouteWithChildren
   '/auth/': typeof AuthIndexRoute
   '/_authed/dashboard/': typeof AuthedDashboardIndexRoute
+  '/_authed/dashboard/r/': typeof AuthedDashboardRIndexRoute
   '/_authed/dashboard/settings/': typeof AuthedDashboardSettingsIndexRoute
+  '/_authed/dashboard/r/new/': typeof AuthedDashboardRNewIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth/' | '/dashboard/' | '/dashboard/settings/'
+  fullPaths:
+    | '/'
+    | '/auth/'
+    | '/dashboard/'
+    | '/dashboard/r/'
+    | '/dashboard/settings/'
+    | '/dashboard/r/new/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/dashboard/settings'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/dashboard/r'
+    | '/dashboard/settings'
+    | '/dashboard/r/new'
   id:
     | '__root__'
     | '/'
     | '/_authed'
     | '/auth/'
     | '/_authed/dashboard/'
+    | '/_authed/dashboard/r/'
     | '/_authed/dashboard/settings/'
+    | '/_authed/dashboard/r/new/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -118,17 +151,35 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDashboardSettingsIndexRouteImport
       parentRoute: typeof AuthedRouteRoute
     }
+    '/_authed/dashboard/r/': {
+      id: '/_authed/dashboard/r/'
+      path: '/dashboard/r'
+      fullPath: '/dashboard/r/'
+      preLoaderRoute: typeof AuthedDashboardRIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
+    '/_authed/dashboard/r/new/': {
+      id: '/_authed/dashboard/r/new/'
+      path: '/dashboard/r/new'
+      fullPath: '/dashboard/r/new/'
+      preLoaderRoute: typeof AuthedDashboardRNewIndexRouteImport
+      parentRoute: typeof AuthedRouteRoute
+    }
   }
 }
 
 interface AuthedRouteRouteChildren {
   AuthedDashboardIndexRoute: typeof AuthedDashboardIndexRoute
+  AuthedDashboardRIndexRoute: typeof AuthedDashboardRIndexRoute
   AuthedDashboardSettingsIndexRoute: typeof AuthedDashboardSettingsIndexRoute
+  AuthedDashboardRNewIndexRoute: typeof AuthedDashboardRNewIndexRoute
 }
 
 const AuthedRouteRouteChildren: AuthedRouteRouteChildren = {
   AuthedDashboardIndexRoute: AuthedDashboardIndexRoute,
+  AuthedDashboardRIndexRoute: AuthedDashboardRIndexRoute,
   AuthedDashboardSettingsIndexRoute: AuthedDashboardSettingsIndexRoute,
+  AuthedDashboardRNewIndexRoute: AuthedDashboardRNewIndexRoute,
 }
 
 const AuthedRouteRouteWithChildren = AuthedRouteRoute._addFileChildren(
