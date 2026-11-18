@@ -1,0 +1,15 @@
+[package]
+name = "echo-infra"
+version = "0.1.0"
+edition =  "2024"
+
+[dependencies]
+tokio = { version = "1.53.1", features = ["full"] }
+uuid = { version = "1.26.0", features = ["v4", "serde"] }
+serde = { version = "1.0.229", features = ["derive"] }
+chrono = "0.4.45"
+thiserror = "2.0.20"
+
+aws-config = { version= "1.12.0", features = ["behavior-version-latest"] }
+aws-sdk-s3 = "1.149.0"
+aws-sdk-sqs = "1.114.0"
