@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 argon2 = "0.6.0"
 chrono = "0.4.45"
+dotenvy = "0.15.7"
 sqlx = { version = "0.9", features = [
   "runtime-tokio",
   "tls-rustls",

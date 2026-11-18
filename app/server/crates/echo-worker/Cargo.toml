@@ -4,3 +4,20 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+aws-config = "1.12.0"
+aws-sdk-s3 = "1.152.0"
+aws-sdk-sqs = "1.114.0"
+echo-db = { path = "../echo-db" }
+echo-infra = { path = "../echo-infra" }
+serde = "1.0.229"
+serde_json = "1.0.154"
+sqlx = "0.9.0"
+thiserror = "2.0.21"
+
+tokio = { version = "1.53.1", features = ["full"] }
+uuid = { version = "1.26.0", features = ["v4", "serde"] }
+tracing = "0.1.44"
+tracing-subscriber = { version= "0.3.23", features = ["env-filter", "fmt"] }
+dotenvy = "0.15.7"
+hound = "3.5.1"
+whisper-rs = "0.16.0"
