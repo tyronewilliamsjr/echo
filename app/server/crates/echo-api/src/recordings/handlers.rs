@@ -1,11 +1,11 @@
-use crate::{app_state::AppState, aws, error::ApiError, middleware::session::CurrentUser};
-
+use crate::{app_state::AppState, error::ApiError, middleware::session::CurrentUser};
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use echo_db::recordings::{CreateRecording, Recording, UpdateRecording};
+use echo_db::recordings::{CreateRecording, Recording, RecordingStatus, UpdateRecording};
+use echo_infra::aws::{s3, sqs};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -39,16 +39,15 @@ pub struct UploadPartRequest {
 
 #[derive(Debug, Serialize)]
 pub struct UploadPartResponse {
-    upload_urls: Vec<aws::UploadUrl>,
+    upload_urls: Vec<s3::UploadUrl>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct UploadStateResponse {
     id: Uuid,
-    parts: Vec<aws::UploadedPart>,
+    parts: Vec<s3::UploadedPart>,
 }
 
-// Extract into a Struct (Recommended)
 #[derive(Deserialize, Debug)]
 pub struct UploadStateSearchParam {
     client_id: Uuid,
@@ -60,7 +59,7 @@ fn generate_key(id: Uuid) -> String {
 }
 
 fn user_owns_recording(recording: &Recording, user_id: Uuid) -> Result<(), ApiError> {
-    if (recording.user_id != user_id) {
+    if recording.user_id != user_id {
         return Err(ApiError::Unauthorized);
     }
 
@@ -87,14 +86,15 @@ pub async fn init_recording(
     .await?;
 
     let key = generate_key(recording.id);
-    let upload_id = aws::init_multi_upload(&key, &request.mime_type).await?;
+    let upload_id = s3::init_multi_upload(&key, &request.mime_type).await?;
 
     let recording = echo_db::recordings::update_by_id(
         &state.pool,
         recording.id,
         UpdateRecording {
             upload_id: Some(upload_id.to_owned()),
-            status: Some(String::from("uploading")),
+            status: Some(RecordingStatus::Uploading),
+            failure_code: None,
         },
     )
     .await?;
@@ -132,7 +132,7 @@ pub async fn create_upload_parts(
         return Err(ApiError::invalid_input("Invalid parts number".to_owned()));
     }
 
-    if recording.status != "uploading" {
+    if recording.status != RecordingStatus::Uploading {
         return Err(ApiError::invalid_input(
             "Recording does not have upload status".to_owned(),
         ));
@@ -154,7 +154,7 @@ pub async fn create_upload_parts(
         .ok_or(ApiError::MissingUploadId)?;
     let key = generate_key(recording.id);
     let part_numbers: Vec<i32> = request.part_numbers.iter().map(|&n| n as i32).collect();
-    let upload_urls = aws::get_upload_url_parts(upload_id, &key, part_numbers).await?;
+    let upload_urls = s3::get_upload_url_parts(upload_id, &key, part_numbers).await?;
 
     Ok((StatusCode::OK, Json(UploadPartResponse { upload_urls })))
 }
@@ -193,7 +193,7 @@ pub async fn get_upload_state(
         .as_ref()
         .ok_or(ApiError::MissingUploadId)?;
     let key = generate_key(recording.id);
-    let list_parts = aws::get_list_parts(&key, upload_id).await?;
+    let list_parts = s3::get_list_parts(&key, upload_id).await?;
 
     Ok((
         StatusCode::OK,
@@ -218,7 +218,7 @@ pub async fn cancel_upload(
         .ok_or(ApiError::MissingUploadId)?;
     let key = generate_key(recording.id);
 
-    aws::abort_multiupload(upload_id, &key).await?;
+    s3::abort_multiupload(upload_id, &key).await?;
 
     // upload the recording to status canceled
     echo_db::recordings::update_by_id(
@@ -226,7 +226,8 @@ pub async fn cancel_upload(
         recording.id,
         UpdateRecording {
             upload_id: None,
-            status: Some("abort".to_owned()),
+            status: Some(RecordingStatus::Abort),
+            failure_code: None,
         },
     )
     .await?;
@@ -242,20 +243,25 @@ pub async fn complete_upload(
     let recording = echo_db::recordings::get_by_server_id(&state.pool, r_id).await?;
     user_owns_recording(&recording, user.id)?;
 
+    if recording.status != RecordingStatus::Uploading {
+        return Err(ApiError::Conflict);
+    }
+
     let upload_id = recording
         .upload_id
         .as_ref()
         .ok_or(ApiError::MissingUploadId)?;
     let key = generate_key(recording.id);
 
-    aws::complete_multi_upload(upload_id, &key).await?;
+    s3::complete_multi_upload(upload_id, &key).await?;
 
     echo_db::recordings::update_by_id(
         &state.pool,
         recording.id,
         UpdateRecording {
             upload_id: None,
-            status: Some("completed".to_owned()),
+            status: Some(RecordingStatus::Completed),
+            failure_code: None,
         },
     )
     .await?;

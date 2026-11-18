@@ -1,8 +1,8 @@
-use aws_sdk_s3::presigning::PresigningConfigError;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use echo_infra::aws::error::AwsError;
 use sqlx;
 
 use crate::auth::password::PasswordError;
@@ -36,26 +36,8 @@ pub enum ApiError {
     #[error("privacy policy missing")]
     MissingPrivacySetting,
 
-    #[error("error occurred during aws operation")]
-    AwsError(String),
-
     #[error(transparent)]
-    AwsPresignedConfigError(#[from] PresigningConfigError),
-
-    #[error("failed to generate presigned upload URL")]
-    AwsPresignedUpload(#[source] Box<dyn std::error::Error + Send + Sync>),
-
-    #[error("failed to abort multiupload")]
-    AwsAbortMultiUpload(#[source] Box<dyn std::error::Error + Send + Sync>),
-
-    #[error("failed to initiate multiupload")]
-    AwsMultipartUpload(#[source] Box<dyn std::error::Error + Send + Sync>),
-
-    #[error("failed to complete multiupload")]
-    AwsCompleteUpload(#[source] Box<dyn std::error::Error + Send + Sync>),
-
-    #[error("failed to get list of upload parts")]
-    AwsListParts(#[source] Box<dyn std::error::Error + Send + Sync>),
+    Aws(#[from] AwsError),
 }
 
 impl ApiError {
@@ -67,18 +49,7 @@ impl ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {
-            Self::AwsError(msg) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
-            }
-            Self::AwsPresignedConfigError(err) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
-            }
-            Self::AwsAbortMultiUpload(err)
-            | Self::AwsCompleteUpload(err)
-            | Self::AwsListParts(err)
-            | Self::AwsPresignedUpload(err)
-            | Self::AwsMultipartUpload(err) => {
-                tracing::error!(error = err, "Aws response error");
+            Self::Aws(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
             }
             Self::MissingUploadId => {
