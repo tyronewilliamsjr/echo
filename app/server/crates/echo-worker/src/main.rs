@@ -8,6 +8,8 @@ use echo_worker::{ProcessingState, ValidationState};
 use echo_worker::{
     WorkerState, error::WorkerError, transcribe::listen_transcribe, validate::listen_validation,
 };
+use tokio::process::Command;
+use tokio::time::timeout;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use whisper_rs::{WhisperContext, WhisperContextParameters};
@@ -31,6 +33,42 @@ async fn verify_model() -> Result<PathBuf, WorkerError> {
         }
         Err(err) => return Err(WorkerError::IO(err)),
     }
+}
+
+// TODO: Add error code to error for debugging if needed
+async fn verify_ffmpeg() -> Result<(), WorkerError> {
+    let ffmpeg_cmd = Command::new("ffmpeg")
+        .arg("-version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .status();
+    let ffprobe_cmd = Command::new("ffprobe")
+        .arg("-version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .kill_on_drop(true)
+        .status();
+
+    let ffmpeg_status = timeout(std::time::Duration::from_secs(5), ffmpeg_cmd)
+        .await
+        .map_err(|_| WorkerError::FFMpegTimeout)?
+        .map_err(WorkerError::FFMpegSpawn)?;
+
+    let ffprobe_status = timeout(std::time::Duration::from_secs(5), ffprobe_cmd)
+        .await
+        .map_err(|_| WorkerError::FFProbeTimeout)?
+        .map_err(WorkerError::FFProbeSpawn)?;
+
+    if !ffmpeg_status.success() {
+        return Err(WorkerError::FFMpegFailed);
+    }
+
+    if !ffprobe_status.success() {
+        return Err(WorkerError::FFProbeFailed);
+    }
+
+    Ok(())
 }
 
 #[tokio::main]
@@ -62,6 +100,7 @@ async fn main() -> Result<(), WorkerError> {
     let storage = RecordingStorage::new(s3_client);
 
     let model_path = verify_model().await?;
+    verify_ffmpeg().await?;
 
     let context = tokio::task::spawn_blocking(move || {
         WhisperContext::new_with_params(&model_path, WhisperContextParameters::default())

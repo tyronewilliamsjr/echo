@@ -6,11 +6,8 @@ use std::{
 };
 
 use echo_db::{
-    recordings::{
-        ClaimInputs, FailureCode, Recording, RecordingStatus, UpdateRecording,
-        invalidate_processing,
-    },
-    transcript::{self, CreateTranscript},
+    recordings::{FailureCode, Recording, RecordingStatus, UpdateRecording, invalidate_processing},
+    transcript::CreateTranscript,
 };
 use echo_infra::{
     aws::sqs::{ProcessingMessage, Queue},
@@ -20,7 +17,7 @@ use tokio::{io::AsyncWriteExt, process::Command, time::timeout};
 use uuid::Uuid;
 use whisper_rs::{FullParams, SamplingStrategy, WhisperState};
 
-use crate::{ProcessingState, create_file, error::WorkerError, tempdir::TempDir};
+use crate::{ProcessingState, create_file, error::WorkerError, tempdir::TempDir, transcribe};
 
 const SAMPLE_RATE: usize = 16_000;
 const CHUNK_SECONDS: usize = 30;
@@ -297,11 +294,10 @@ async fn run_ffmpeg_pcm(input_path: &PathBuf, output_path: &PathBuf) -> Result<(
         .output();
 
     // TODO: benchmark timeout to determine if 10 minutes is long enough for 1+ hour recordings
-    let output = match timeout(Duration::from_secs(600), cmd).await {
-        Err(_) => return Err(WorkerError::FFMpegTimeout),
-        Ok(Err(_)) => return Err(WorkerError::FFMpegSpawn),
-        Ok(Ok(output)) => output,
-    };
+    let output = timeout(Duration::from_secs(600), cmd)
+        .await
+        .map_err(|_| WorkerError::FFMpegTimeout)?
+        .map_err(WorkerError::FFMpegSpawn)?;
 
     if !output.status.success() {
         tracing::warn!(
@@ -521,8 +517,13 @@ pub async fn listen_transcribe(
     tracing::info!("Listening to Process Queue");
 
     loop {
-        let Some(message) = queues.receieve_process_message().await? else {
-            continue;
+        let message = match queues.receieve_process_message().await {
+            Ok(Some(msg)) => msg,
+            Ok(None) => continue,
+            Err(err) => {
+                tracing::warn!(%err, "receieved failed");
+                continue;
+            }
         };
 
         let body: ProcessingMessage = match serde_json::from_str(message.body().unwrap_or("")) {
@@ -540,64 +541,76 @@ pub async fn listen_transcribe(
         let process_result =
             process_and_persist(&state, &temp_storage, &body, processing_id.clone()).await;
 
-        match process_result {
-            Ok(_) => {
-                queues.delete_processing(&message).await?;
-            }
+        let result = async {
+            match process_result {
+                Ok(_) => {
+                    queues.delete_processing(&message).await?;
+                }
 
-            Err(err) => {
-                tracing::error!(
-                  recording_id = %&body.recording_id,
-                  error = %err,
-                  "Processing recording failed"
-                );
+                Err(err) => {
+                    tracing::error!(
+                      recording_id = %&body.recording_id,
+                      error = %err,
+                      "Processing recording failed"
+                    );
 
-                match err {
-                    WorkerError::InvalidRecording(failure_code) => {
-                        invalidate_processing(
-                            &state.pool,
-                            body.recording_id,
-                            processing_id,
-                            failure_code,
-                        )
-                        .await?;
+                    match err {
+                        WorkerError::InvalidRecording(failure_code) => {
+                            invalidate_processing(
+                                &state.pool,
+                                body.recording_id,
+                                processing_id,
+                                failure_code,
+                            )
+                            .await?;
 
-                        queues.delete_processing(&message).await?;
-                    }
-                    WorkerError::InvalidRecordingState => {
-                        // TODO: Add some type of recovering worker that will look
-                        // unexpected recording state, might be recoverable
-                        queues.move_message_dql(&message).await?;
-                    }
-                    WorkerError::ProcessingHandled | WorkerError::MissingRecording => {
-                        queues.delete_processing(&message).await?;
-                    }
-                    WorkerError::ValidationInProgress | WorkerError::ProcessingInProgress => {
-                        // Don't do anything and allow the message to be retried later
-                    }
+                            queues.delete_processing(&message).await?;
+                        }
+                        WorkerError::InvalidRecordingState => {
+                            // TODO: Add some type of recovering worker that will look
+                            // unexpected recording state, might be recoverable
+                            queues.move_message_dql(&message).await?;
+                        }
+                        WorkerError::ProcessingHandled | WorkerError::MissingRecording => {
+                            queues.delete_processing(&message).await?;
+                        }
+                        WorkerError::ValidationInProgress | WorkerError::ProcessingInProgress => {
+                            // Don't do anything and allow the message to be retried later
+                        }
 
-                    // Recording can be retried later. Dont delete sqs message
-                    WorkerError::FFMpegTimeout => {
-                        // TODO: This might not be retriable, needs benchmarking to tell if timeout is suitable.
-                        // Currently it will retry on timeout.
-                        echo_db::recordings::release_claim_process(
-                            &state.pool,
-                            body.recording_id,
-                            processing_id,
-                        )
-                        .await?;
-                    }
+                        // Recording can be retried later. Dont delete sqs message
+                        WorkerError::FFMpegTimeout => {
+                            // TODO: This might not be retriable, needs benchmarking to tell if timeout is suitable.
+                            // Currently it will retry on timeout.
+                            echo_db::recordings::release_claim_process(
+                                &state.pool,
+                                body.recording_id,
+                                processing_id,
+                            )
+                            .await?;
+                        }
 
-                    _ => {
-                        echo_db::recordings::release_claim_process(
-                            &state.pool,
-                            body.recording_id,
-                            processing_id,
-                        )
-                        .await?;
+                        _ => {
+                            echo_db::recordings::release_claim_process(
+                                &state.pool,
+                                body.recording_id,
+                                processing_id,
+                            )
+                            .await?;
+                        }
                     }
                 }
             }
+
+            Ok::<(), WorkerError>(())
+        }
+        .await;
+
+        if let Err(err) = result {
+            tracing::error!(
+              err =  %err ,
+              "Error occurred during clean up message"
+            )
         }
     }
 }

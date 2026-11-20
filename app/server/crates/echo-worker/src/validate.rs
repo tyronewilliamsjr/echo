@@ -96,11 +96,10 @@ async fn run_ffprobe(path: &str) -> Result<ProbeResult, WorkerError> {
         .kill_on_drop(true)
         .output();
 
-    let output = match timeout(Duration::from_secs(300), cmd).await {
-        Err(_) => Err(WorkerError::FFProbeTimeout),
-        Ok(Err(_)) => Err(WorkerError::FFProbeSpawn),
-        Ok(Ok(output)) => Ok(output),
-    }?;
+    let output = timeout(Duration::from_secs(300), cmd)
+        .await
+        .map_err(|_| WorkerError::FFProbeTimeout)?
+        .map_err(WorkerError::FFProbeSpawn)?;
 
     if !output.status.success() {
         return Err(WorkerError::InvalidRecording(FailureCode::ProbeRejected));

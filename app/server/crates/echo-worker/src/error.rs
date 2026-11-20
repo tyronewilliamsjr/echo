@@ -11,13 +11,19 @@ use whisper_rs::WhisperError;
 #[derive(Debug, thiserror::Error)]
 pub enum WorkerError {
     #[error("ffprobe could not run")]
-    FFProbeSpawn,
+    FFProbeSpawn(#[source] std::io::Error),
+
+    #[error("ffmpeg could not run")]
+    FFMpegSpawn(#[source] std::io::Error),
+
+    #[error("ffprobe failed during run")]
+    FFProbeFailed,
+
+    #[error("ffmpeg failed during run")]
+    FFMpegFailed,
 
     #[error("FFprobe timedout")]
     FFProbeTimeout,
-
-    #[error("ffmpeg could not run")]
-    FFMpegSpawn,
 
     #[error("FFmpeg timedout")]
     FFMpegTimeout,
